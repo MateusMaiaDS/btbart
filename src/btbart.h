@@ -22,10 +22,16 @@ struct Node {
      // Leaf parameters
      double mu;
 
+
+     // Displaying and check nodes
+     void displayNode();
+
      // Creating the methods
      void addingLeaves();
      void deletingLeaves();
 
+     Node();
+     ~Node();
 };
 
 // Creating a function to get the leaves

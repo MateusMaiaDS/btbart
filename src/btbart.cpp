@@ -1,9 +1,24 @@
 #include <RcppArmadillo.h>
-#include<iostream>
 #include "btbart.h"
 
 using namespace Rcpp;
 using namespace arma;
+using namespace std;
+
+// Initialising a node
+Node::Node(){
+        isLeaf = true;
+        isRoot = true;
+        left = NULL;
+        right = NULL;
+        parent = NULL;
+
+        var_split = 0;
+        var_split_rule = 0.0;
+        lower = 0.0;
+        upper = 0.0;
+        mu = 0.0;
+}
 
 void Node::addingLeaves(){
 
@@ -36,9 +51,17 @@ void Node::addingLeaves(){
      right -> mu = 0;
 
 
+     return;
 
 }
 
+void Node::displayNode(){
+
+        cout << "Node is leaf: " << isLeaf << endl;
+        cout << "Node is root" << isRoot << endl;
+
+        return;
+}
 
 void Node::deletingLeaves(){
 
@@ -48,6 +71,8 @@ void Node::deletingLeaves(){
      left = this;  // The new pointer for the left become the node itself
      right = this; // The new pointer for the right become the node itself
      isLeaf = true;
+
+     return;
 
 }
 // Getting the leaves (this is the function that gonna do the recursion the
@@ -60,6 +85,9 @@ void get_leaves(Node* x,  std::vector<Node*> &leaves_vec) {
                 get_leaves(x->left, leaves_vec);
                 get_leaves(x->right,leaves_vec);
         }
+
+        return;
+
 }
 
 
@@ -69,3 +97,11 @@ std::vector<Node*> leaves(Node* x) {
         get_leaves(x,leaves_init);
         return(leaves_init);
 }
+
+// [[Rcpp::export]]
+void testingDisplay(){
+        Node node_init;
+        node_init.displayNode();
+        return;
+}
+
