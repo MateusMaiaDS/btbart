@@ -2,6 +2,42 @@
 
 // Creating the struct
 struct Node;
+struct modelParam;
+
+struct modelParam {
+
+        arma::mat X;
+        arma::vec y;
+
+        // BART prior param specification
+        double alpha;
+        double beta;
+        double tau_mu;
+        double tau;
+        double a_tau;
+        double d_tau;
+
+        // MCMC spec.
+        int n_mcmc;
+        int n_burn;
+
+        // modelParam(Rcpp::List& modelParam_obj);
+
+
+};
+
+// Creating a forest
+class Forest {
+
+public:
+        std::vector<Node*> trees;
+        modelParam modelParam_;
+
+        Forest(arma::mat &X, int n_tree, Rcpp::List modelParam_obj);
+        ~Forest();
+};
+
+
 
 // Creating the node struct
 struct Node {
@@ -17,6 +53,7 @@ struct Node {
      double var_split_rule;
      double lower;
      double upper;
+     double curr_weight; // indicates if the observation is within terminal node or not
 
 
      // Leaf parameters
@@ -29,6 +66,8 @@ struct Node {
      // Creating the methods
      void addingLeaves();
      void deletingLeaves();
+     void Stump();
+     void updateWeight(const arma::mat X, int i);
 
      Node();
      ~Node();
