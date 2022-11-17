@@ -21,7 +21,6 @@ struct modelParam {
         int n_mcmc;
         int n_burn;
 
-        // modelParam(Rcpp::List& modelParam_obj);
 
 
 };
@@ -33,7 +32,7 @@ public:
         std::vector<Node*> trees;
         modelParam modelParam_;
 
-        Forest(arma::mat &X, int n_tree, Rcpp::List modelParam_obj);
+        Forest(const arma::mat &X, int n_tree);
         ~Forest();
 };
 
@@ -62,12 +61,18 @@ struct Node {
 
      // Displaying and check nodes
      void displayNode();
+     void displayCurrNode();
 
      // Creating the methods
      void addingLeaves();
      void deletingLeaves();
      void Stump();
      void updateWeight(const arma::mat X, int i);
+     void getLimits(); // This function will get previous limit for the current var
+     void sampleSplitVar(int p);
+     bool isLeft();
+     bool isRight();
+     void grow();
 
      Node();
      ~Node();
@@ -76,3 +81,8 @@ struct Node {
 // Creating a function to get the leaves
 void leaves(Node* x, std::vector<Node*>& leaves); // This function gonna modify by address the vector of leaves
 std::vector<Node*> leaves(Node*x);
+// [[Rcpp::export]]
+double rand_unif(){
+        double rand_d = std::rand();
+        return rand_d/RAND_MAX;
+};

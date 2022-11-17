@@ -24,8 +24,11 @@ tree_loglike_rule <- function(x,y, tau = 1, tau_mu=1,var_split,var_split_rule){
 # microbenchmark::microbenchmark(tree_loglike(x = x,y = y),test_logtree(X = x,y = y),times = 10000)
 
 
-test_logtree(X = x,y = y,tau = 1.0,tau_mu = 1.0,new_split_var = 0,new_split_var_rule = 0.0)
+test_logtree(X = x,y = y,tau = 1.0,tau_mu = 1.0,new_split_var = 0,new_split_var_rule = 0.67)
 testingDisplay()
 var_split <- 1
 var_split_rule <- 0
-tree_loglike_rule(x = x,y = y,tau = 1.0,tau_mu = 1,var_split = 1,var_split_rule = 0)
+tree_loglike_rule(x = x,y = y,tau = 1.0,tau_mu = 1,var_split = 1,var_split_rule = 0.67)
+
+# Doing more tests
+createTree(X = x,y = y,n_tree = 1)

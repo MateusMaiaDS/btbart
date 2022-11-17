@@ -12,7 +12,7 @@ Node::Node(){
         var_split = 0;
         var_split_rule = 0.0;
         lower = 0.0;
-        upper = 0.0;
+        upper = 1.0;
         curr_weight = 0.0;
         mu = 0.0;
 }
@@ -48,9 +48,9 @@ void Node::addingLeaves(){
      left -> right = left;
      left -> parent = this;
      left -> var_split = 0;
-     left -> var_split_rule = 0;
-     left -> lower = 0;
-     left -> upper = 1;
+     left -> var_split_rule = 0.0;
+     left -> lower = 0.0;
+     left -> upper = 1.0;
      left -> mu = 0;
 
      right -> isRoot = false;
@@ -59,14 +59,70 @@ void Node::addingLeaves(){
      right -> right = right;
      right -> parent = this;
      right -> var_split = 0;
-     right -> var_split_rule = 0;
-     right -> lower = 0;
-     right -> upper = 1;
-     right -> mu = 0;
+     right -> var_split_rule = 0.0;
+     right -> lower = 0.0;
+     right -> upper = 1.0;
+     right -> mu = 0.0;
 
 
      return;
 
+}
+
+// Creating boolean to check if the vector is left or right
+bool Node::isLeft(){
+        return (this == this->parent->left);
+}
+
+bool Node::isRight(){
+        return (this == this->parent->right);
+}
+
+// Sample var
+void Node::sampleSplitVar(int p){
+
+        // Sampling one index from 0:(p-1)
+        var_split = std::rand()%p;
+
+}
+// This functions will get and update the current limits for this current variable
+void Node::getLimits(){
+
+        // Creating  a new pointer for the current node
+        Node* x = this;
+        // Already defined this -- no?
+        lower = 0.0;
+        upper = 1.0;
+        // First we gonna check if the current node is a root or not
+        bool tree_iter = x->isRoot ? false: true;
+        while(tree_iter){
+                bool is_left = x->isLeft(); // This gonna check if the current node is left or not
+                x = x->parent; // Always getting the parent of the parent
+                tree_iter = x->isRoot ? false : true; // To stop the while
+                if(x->var_split == var_split){
+                        tree_iter = false ; // This stop is necessary otherwise we would go up til the root, since we are always update there is no prob.
+                        if(is_left){
+                                upper = x->var_split_rule;
+                                lower = x->lower;
+                        } else {
+                                upper = x->upper;
+                                lower = x->var_split_rule;
+                        }
+                }
+        }
+}
+
+void Node::displayCurrNode(){
+
+                std::cout << "Node address: " << this << std::endl;
+                std::cout << "Node parent: " << parent << std::endl;
+
+                std::cout << "Cur Node is leaf: " << isLeaf << std::endl;
+                std::cout << "Cur Node is root: " << isRoot << std::endl;
+                std::cout << "Cur The split_var is: " << var_split << std::endl;
+                std::cout << "Cur The split_var_rule is: " << var_split_rule << std::endl;
+
+                return;
 }
 
 void Node::displayNode(){
@@ -74,6 +130,9 @@ void Node::displayNode(){
         if(isLeaf){
                 std::cout << "Node is leaf: " << isLeaf << std::endl;
                 std::cout << "Node is root: " << isRoot << std::endl;
+                std::cout << "The split_var is: " << var_split << std::endl;
+                std::cout << "The split_var_rule is: " << var_split << std::endl;
+
         } else {
                 left->displayNode();
                 right->displayNode();
@@ -120,7 +179,7 @@ std::vector<Node*> leaves(Node* x) {
 }
 
 // Initializing the forest
-Forest::Forest(arma::mat& X, int n_tree, Rcpp::List modelParam_obj){
+Forest::Forest(const arma::mat& X, int n_tree){
 
         // Creatina vector of size of number of trees
         trees.resize(n_tree);
@@ -148,21 +207,22 @@ Node* sample_node(std::vector<Node*> leaves_){
 }
 
 // Grow a tree for a given rule
-// void grow(Node* x){
-//
-//         int r_var_split = 0;
-//         double r_var_split_rule = 0.0;
-//
-//         if(x->isRoot){
-//                x->isRoot = false;
-//         }
-//
-//         x->addingLeaves();
-//         x->var_split = r_var_split;
-//         x->var_split_rule = r_var_split_rule;
-//
-//         return;
-// }
+void Node::grow(){
+
+        if(isLeaf){
+                addingLeaves();
+                // Selecting the var
+                sampleSplitVar(1);
+                // Updating the limits
+                getLimits();
+                // Selecting a rule
+                var_split_rule = (upper-lower)*rand_unif()+lower;
+
+                if(isRoot){
+                        isRoot = false;
+                }
+        }
+}
 
 // Calculating the LLT for a tree
 double treeLogLike(Node* tree, const arma::vec& y,
@@ -237,6 +297,35 @@ void Node::updateWeight(const arma::mat X, int i){
 
 // TESTING FUNCTIONS
 
+// Creating a function to create a tree and select terminal nodes to be grown
+// [[Rcpp::export]]
+void createTree(const arma::mat X,
+                const arma::vec y,
+                int n_tree){
+
+        Forest all_trees = Forest(X,n_tree);
+
+        // Getting the leaves of my first tree
+        for(int k=0;k<10;k++){
+                std::vector<Node*> tree_zero_leafs = leaves(all_trees.trees[0]);
+                Node* g_leaf = sample_node(tree_zero_leafs);
+
+                cout << "Verifying the first tree: " << all_trees.trees[0] <<endl;
+                cout << "Verifying the first tree: " << g_leaf <<endl;
+
+                // Displaying this node before grow
+                g_leaf->displayCurrNode();
+                // Now I gonna grow the chosen node
+                g_leaf->grow();
+                g_leaf->displayCurrNode();
+
+                cout << " ================= " << endl;
+                cout << " ======= " << k <<" ======" << endl;
+                cout << " ================= " << endl;
+
+        }
+
+}
 
 // Testing likelihood calculation
 
@@ -253,11 +342,15 @@ double test_logtree(const arma::mat X,
         std::cout << "Root loglike" << treeLogLike(&node_init,y,X,tau,tau_mu) <<std::endl;
 
         // Adding one node
-        node_init.addingLeaves();
-        node_init.isRoot = false;
-        node_init.var_split = new_split_var;
-        node_init.var_split_rule = new_split_var_rule;
+        // node_init.addingLeaves();
+        // node_init.isRoot = false;
+        // node_init.var_split = new_split_var;
+        // node_init.var_split_rule = new_split_var_rule;
 
+        node_init.grow();
+        cout<< " ===== " << endl;
+
+        node_init.displayCurrNode();
         Node* point_test = &node_init;
         std::cout << "First split: " << treeLogLike(point_test,y,X,tau,tau_mu) <<std::endl;
 
