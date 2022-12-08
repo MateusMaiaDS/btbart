@@ -58,6 +58,11 @@ struct Node {
      // Leaf parameters
      double mu;
 
+     // Storing sufficient statistics over the nodes
+     double r_sq_sum = 0;
+     double r_sum = 0;
+     double log_likelihood = 0;
+     double n_leaf = 0.0;
 
      // Displaying and check nodes
      void displayNode();

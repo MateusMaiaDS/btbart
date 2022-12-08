@@ -15,6 +15,11 @@ Node::Node(){
         upper = 1.0;
         curr_weight = 0.0;
         mu = 0.0;
+        n_leaf = 0.0;
+        r_sq_sum = 0.0;
+        r_sum = 0.0;
+        log_likelihood = 0.0;
+
 }
 
 Node::~Node() {
@@ -51,7 +56,11 @@ void Node::addingLeaves(){
      left -> var_split_rule = 0.0;
      left -> lower = 0.0;
      left -> upper = 1.0;
-     left -> mu = 0;
+     left -> mu = 0.0;
+     left -> r_sq_sum = 0.0;
+     left -> r_sum = 0.0;
+     left -> log_likelihood = 0.0;
+     left -> n_leaf = 0.0;
 
      right -> isRoot = false;
      right -> isLeaf = true;
@@ -63,6 +72,10 @@ void Node::addingLeaves(){
      right -> lower = 0.0;
      right -> upper = 1.0;
      right -> mu = 0.0;
+     right -> r_sq_sum = 0.0;
+     right -> r_sum = 0.0;
+     right -> log_likelihood = 0.0;
+     right -> n_leaf = 0.0;
 
 
      return;
@@ -245,6 +258,7 @@ double treeLogLike(Node* tree, const arma::vec& y,
         if(tree->isRoot){
                 return -0.5*tau*dot(y,y) - 0.5*log(tau_mu + (y.size()*tau)) + (0.5*(tau*tau)*(sum(y)*sum(y)))/(tau_mu + (y.size()*tau));
         }
+
         cout << "Number of leaves " <<  n_leaves << endl;
 
         // Selecting it observation
@@ -267,8 +281,12 @@ double treeLogLike(Node* tree, const arma::vec& y,
         cout << "ALL NODES " <<sum(n_t_nodes) << endl;
         // Getting the sum and the sum_sq
         for(int l = 0; l<n_leaves;l++){
+                t_nodes[l]->r_sum = t_node_r(l);
+                t_nodes[l]->r_sq_sum = t_node_r_sq(l);
+                t_nodes[l]->n_leaf = n_t_nodes(l);
                 tree_log_likelihood = tree_log_likelihood - 0.5*tau*t_node_r_sq(l) - 0.5*log(tau_mu + (n_t_nodes(l)*tau)) + (0.5*(tau*tau)*(t_node_r(l)*t_node_r(l)))/( (tau*n_t_nodes(l))+tau_mu);
         }
+
 
         return tree_log_likelihood;
 }
