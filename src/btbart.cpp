@@ -314,18 +314,22 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
         // Selecting one node to be sampled
         Node* g_node = sample_node(t_nodes);
 
+        // Store all old quantities that will be used or not
+        double old_lower = g_node->lower;
+        double old_upper = g_node->upper;
+        int old_var_split = g_node->var_split;
+        double old_var_split_rule = g_node->var_split_rule;
+
         // Calculate current tree log likelihood
         double tree_log_like = 0;
 
-        std::cout << "Test 1" << std::endl;
         // Calculating the whole likelihood fo the tree
         for(int i = 0; i < t_nodes.size(); i++){
                 t_nodes[i]->nodeLogLike(data, curr_res);
                 tree_log_like = tree_log_like + t_nodes[i]->log_likelihood;
         }
 
-        // std::cout << "Test 2" << std::endl;
-
+        // Adding the leaves
         g_node->addingLeaves(data);
 
         // Selecting the var
@@ -347,7 +351,6 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
         int test_left_counter = 0;
         int test_right_counter = 0;
 
-        // cout << "Test 3" << endl ;
 
         // Updating the left and the right nodes
         for(int i = 0;i<g_node->train_index.size();i++){
@@ -363,9 +366,6 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
                 }
         }
 
-        cout << "Test 4" << endl ;
-
-
         // Updating the left and right nodes for the
         for(int i = 0;i<g_node->test_index.size();i++){
                 if(g_node -> test_index[i] == -1){
@@ -380,14 +380,9 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
                 }
         }
 
-        cout << "Test 5" << endl ;
-
         // Updating the loglikelihood for those terminal nodes
         g_node->left->nodeLogLike(data, curr_res);
         g_node->right->nodeLogLike(data, curr_res);
-
-        cout << "Test 6" << endl ;
-
 
         // Getting the transition probability
         double log_transition_prob = log((0.3)/(nog_nodes.size()+1)) - log(0.3/t_nodes.size()); // 0.3 and 0.3 are the prob of Prune and Grow, respectively
@@ -403,6 +398,11 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
                 cout << " ACCEPTED!!! " << endl;
                 // Do nothing just keep the new tree
         } else {
+                // Returning to the old values
+                g_node->var_split = old_var_split;
+                g_node->var_split_rule = old_var_split_rule;
+                g_node->lower = old_lower;
+                g_node->upper = old_upper;
                 g_node->deletingLeaves();
         }
 
@@ -425,7 +425,6 @@ void prune(Node* tree, modelParam&data, arma::vec &curr_res){
         // Calculate current tree log likelihood
         double tree_log_like = 0;
 
-        std::cout << "Test 1" << std::endl;
         // Calculating the whole likelihood fo the tree
         for(int i = 0; i < t_nodes.size(); i++){
                 t_nodes[i]->nodeLogLike(data, curr_res);
@@ -446,6 +445,133 @@ void prune(Node* tree, modelParam&data, arma::vec &curr_res){
 
         if(rand_unif()<acceptance){
                 p_node->deletingLeaves();
+        }
+
+        return;
+}
+
+
+// Creating the change verb
+void change(Node* tree, modelParam &data, arma::vec &curr_res){
+
+
+        // Getting the number of terminal nodes
+        std::vector<Node*> t_nodes = leaves(tree) ;
+        std::vector<Node*> nog_nodes = nogs(tree);
+
+
+        // Selecting one node to be sampled
+        Node* c_node = sample_node(nog_nodes);
+
+        // Calculate current tree log likelihood
+        double tree_log_like = 0;
+
+        // Calculating the whole likelihood fo the tree
+        for(int i = 0; i < t_nodes.size(); i++){
+                t_nodes[i]->nodeLogLike(data, curr_res);
+                tree_log_like = tree_log_like + t_nodes[i]->log_likelihood;
+        }
+
+        // Storing all the old loglikelihood from left
+        double old_left_log_like = c_node->left->log_likelihood;
+        double old_left_r_sum = c_node->left->r_sum;
+        double old_left_r_sq_sum = c_node->left->r_sq_sum;
+        double old_left_n_leaf = c_node->left->n_leaf;
+        std::vector<int> old_left_train_index = c_node->left->train_index;
+        std::vector<int> old_left_test_index = c_node->left->test_index;
+
+        // Storing all of the old loglikelihood from right;
+        double old_right_log_like = c_node->right->log_likelihood;
+        double old_right_r_sum = c_node->right->r_sum;
+        double old_right_r_sq_sum = c_node->right->r_sq_sum;
+        double old_right_n_leaf = c_node->right->n_leaf;
+        std::vector<int> old_right_train_index = c_node->right->train_index;
+        std::vector<int> old_right_test_index = c_node->right->test_index;
+
+        // Storing the old ones
+        int old_var_split = c_node->var_split;
+        int old_var_split_rule = c_node->var_split_rule;
+        int old_lower = c_node->lower;
+        int old_upper = c_node->upper;
+
+        // Selecting the var
+        c_node-> sampleSplitVar(data.x_train.n_cols);
+        // Updating the limits
+        c_node->getLimits();
+        // Selecting a rule
+        c_node->var_split_rule = (c_node->upper-c_node->lower)*rand_unif()+c_node->lower;
+
+        // Create an aux for the left and right index
+        int train_left_counter = 0;
+        int train_right_counter = 0;
+
+        int test_left_counter = 0;
+        int test_right_counter = 0;
+
+
+        // Updating the left and the right nodes
+        for(int i = 0;i<c_node->train_index.size();i++){
+                if(c_node -> train_index[i] == -1){
+                        break;
+                }
+                if(data.x_train(c_node->train_index[i],c_node->var_split)<c_node->var_split_rule){
+                        c_node->left->train_index[train_left_counter] = c_node->train_index[i];
+                        train_left_counter++;
+                } else {
+                        c_node->right->train_index[train_right_counter] = c_node->train_index[i];
+                        train_right_counter++;
+                }
+        }
+
+        // Updating the left and the right nodes
+        for(int i = 0;i<c_node->test_index.size();i++){
+                if(c_node -> test_index[i] == -1){
+                        break;
+                }
+                if(data.x_test(c_node->test_index[i],c_node->var_split)<c_node->var_split_rule){
+                        c_node->left->test_index[test_left_counter] = c_node->test_index[i];
+                        test_left_counter++;
+                } else {
+                        c_node->right->test_index[test_right_counter] = c_node->test_index[i];
+                        test_right_counter++;
+                }
+        }
+
+        // Updating the new left and right loglikelihoods
+        c_node->left->nodeLogLike(data,curr_res);
+        c_node->right->nodeLogLike(data,curr_res);
+
+        // Calculating the acceptance
+        double new_tree_log_like = tree_log_like - old_left_log_like - old_right_log_like + c_node->left->log_likelihood + c_node->right->log_likelihood;
+
+        double acceptance = exp(new_tree_log_like - tree_log_like);
+
+        if(rand_unif()<acceptance){
+                std::cout << "CHANGE ACCEPTED " << endl;
+
+        } else {
+
+                // Returning to the previous values
+                c_node->var_split = old_var_split;
+                c_node->var_split_rule = old_var_split_rule;
+                c_node->lower = old_lower;
+                c_node->upper = old_upper;
+
+                // Returning to the old ones
+                c_node->left->r_sum = old_left_r_sum;
+                c_node->left->r_sq_sum = old_left_r_sq_sum;
+                c_node->left->n_leaf = old_left_n_leaf;
+                c_node->left->log_likelihood = old_left_log_like;
+                c_node->left->train_index = old_left_train_index;
+                c_node->left->test_index = old_left_test_index;
+
+                c_node->right->r_sum = old_right_r_sum;
+                c_node->right->r_sq_sum = old_right_r_sq_sum;
+                c_node->right->n_leaf = old_right_n_leaf;
+                c_node->right->log_likelihood = old_right_log_like;
+                c_node->right->train_index = old_right_train_index;
+                c_node->right->test_index = old_right_test_index;
+
         }
 
         return;
@@ -632,6 +758,24 @@ double test_logtree(arma::mat X,
         std::cout << " GROWN TREE - Root loglike: " << node_init.left->log_likelihood << std::endl;
         cout << "Number of leaves: " << leaves(&node_init).size() << endl;
         prune(&node_init, data,  y);
+        cout << "Number of leaves: " << leaves(&node_init).size() << endl;
+        // Trying to grow a tree
+        for(int  i=0;i<100;i++){
+                grow(&node_init, data, y);
+        }
+        std::cout << " GROWN TREE - Root loglike: " << node_init.left->left->log_likelihood << std::endl;
+        cout << "Number of leaves: " << leaves(&node_init).size() << endl;
+
+        // Trying to grow a tree
+        for(int  i=0;i<100;i++){
+                prune(&node_init, data, y);
+        }
+
+        // Trying to change a tree
+        for(int  j=0;j<100;j++){
+                change(&node_init, data, y);
+        }
+        std::cout << " CHANGE TREE - Root loglike: " << node_init.left->left->log_likelihood << std::endl;
         cout << "Number of leaves: " << leaves(&node_init).size() << endl;
 
         return 0.0;
