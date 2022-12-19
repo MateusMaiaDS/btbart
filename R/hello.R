@@ -1,5 +1,5 @@
-x <- matrix(rnorm(n = 100))
-y <- rnorm(n = 100)
+x <- matrix(seq(-pi,pi,length.out = 100))
+y <- sin(x)
 
 # Test functions
 tree_loglike <- function(x,y, tau = 1, tau_mu=1){
@@ -21,10 +21,11 @@ tree_loglike_rule <- function(x,y, tau = 1, tau_mu=1,var_split,var_split_rule){
      return(log_node_one + log_node_two)
 }
 
-# microbenchmark::microbenchmark(tree_loglike(x = x,y = y),test_logtree(X = x,y = y),times = 10000)
+microbenchmark::microbenchmark(tree_loglike(x = x,y = y),test_logtree(X = x,y = y),times = 10000)
 
 
-test_logtree(X = x,y = y,tau = 1.0,tau_mu = 1.0,new_split_var = 0,new_split_var_rule = 0.67)
+test_logtree(X = x,y = y)
+
 testingDisplay()
 var_split <- 1
 var_split_rule <- 0

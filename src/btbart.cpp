@@ -1,13 +1,47 @@
 #include "btbart.h"
 
 using namespace std;
+
+// Initialising the model Param
+modelParam::modelParam(arma::mat x_train_,
+                       arma::vec y_,
+                       arma::mat x_test_,
+                       int n_tree_,
+                       double alpha_,
+                       double beta_,
+                       double tau_mu_,
+                       double tau_,
+                       double a_tau_,
+                       double d_tau_,
+                       double n_mcmc_,
+                       double n_burn_){
+
+        // Assign the variables
+        x_train = x_train_;
+        y = y_;
+        x_test = x_test_;
+        n_tree = n_tree_;
+        alpha = alpha_;
+        beta = beta_;
+        tau_mu = tau_mu_;
+        tau = tau_;
+        a_tau = a_tau_;
+        d_tau = d_tau_;
+        n_mcmc = n_mcmc_;
+        n_burn = n_burn_;
+
+}
+
 // Initialising a node
-Node::Node(){
+Node::Node(modelParam &data){
         isLeaf = true;
         isRoot = true;
         left = NULL;
         right = NULL;
         parent = NULL;
+
+        train_index = std::vector<int>(data.x_train.n_rows,-1);
+        test_index = std::vector<int>(data.x_test.n_rows,-1);
 
         var_split = 0;
         var_split_rule = 0.0;
@@ -30,20 +64,30 @@ Node::~Node() {
 }
 
 // Initializing a stump
-void Node::Stump(){
+void Node::Stump(modelParam& data){
 
         // Changing the left parent and right nodes;
         left = this;
         right = this;
         parent = this;
 
+        // Updating the training index with the current observations
+        for(int i=0; i<data.x_train.n_rows;i++){
+                train_index[i] = i;
+        }
+
+        // Updating the same for the test observations
+        for(int i=0; i<data.x_test.n_rows;i++){
+                test_index[i] = i;
+        }
+
 }
 
-void Node::addingLeaves(){
+void Node::addingLeaves(modelParam& data){
 
      // Create the two new nodes
-     left = new Node; // Creating a new vector object to the
-     right = new Node;
+     left = new Node(data); // Creating a new vector object to the
+     right = new Node(data);
      isLeaf = false;
 
      // Modifying the left node
@@ -62,6 +106,7 @@ void Node::addingLeaves(){
      left -> log_likelihood = 0.0;
      left -> n_leaf = 0.0;
 
+
      right -> isRoot = false;
      right -> isLeaf = true;
      right -> left = right; // Recall that you are saving the address of the right node.
@@ -77,6 +122,15 @@ void Node::addingLeaves(){
      right -> log_likelihood = 0.0;
      right -> n_leaf = 0.0;
 
+     // Decide when to update the indexes of each tree
+     // --- MAYBE ONLY WHEN APPLLYING THE FUNCTIONS OF THE VERB --
+     //
+
+     // // Getting the i indexes
+     // for(int i=0;i<train_index.size();i++){
+     //         if(data.x_train()
+     //                    left->train_index[i] = train_index[i];
+     // }
 
      return;
 
@@ -146,6 +200,11 @@ void Node::displayNode(){
                 std::cout << "The split_var is: " << var_split << std::endl;
                 std::cout << "The split_var_rule is: " << var_split << std::endl;
 
+                std::cout << "The train indexes are: " ;
+                for(int  i=0;i<train_index.size();i++){
+                        std::cout << train_index[i] << " ";
+                }
+
         } else {
                 left->displayNode();
                 right->displayNode();
@@ -191,16 +250,41 @@ std::vector<Node*> leaves(Node* x) {
         return(leaves_init);
 }
 
+// Sweeping the trees looking for nogs
+void get_nogs(std::vector<Node*>& nogs, Node* node){
+        if(!node->isLeaf){
+                bool bool_left_is_leaf = node->left->isLeaf;
+                bool bool_right_is_leaf = node->right->isLeaf;
+
+                // Checking if the current one is a NOGs
+                if(bool_left_is_leaf && bool_right_is_leaf){
+                        nogs.push_back(node);
+                } else { // Keep looking for other NOGs
+                        get_nogs(nogs, node->left);
+                        get_nogs(nogs, node->right);
+                }
+        }
+}
+
+// Creating the vectors of nogs
+std::vector<Node*> nogs(Node* tree){
+        std::vector<Node*> nogs_init(0);
+        get_nogs(nogs_init,tree);
+        return nogs_init;
+}
+
+
+
 // Initializing the forest
-Forest::Forest(const arma::mat& X, int n_tree){
+Forest::Forest(modelParam& data){
 
         // Creatina vector of size of number of trees
-        trees.resize(n_tree);
-        for(int  i=0;i<n_tree;i++){
+        trees.resize(data.n_tree);
+        for(int  i=0;i<data.n_tree;i++){
                 // Creating the stump for each tree
-                trees[i] = new Node();
+                trees[i] = new Node(data);
                 // Filling up each stump for each tree
-                trees[i]->Stump();
+                trees[i]->Stump(data);
         }
 }
 
@@ -220,21 +304,178 @@ Node* sample_node(std::vector<Node*> leaves_){
 }
 
 // Grow a tree for a given rule
-void Node::grow(){
+void grow(Node* tree, modelParam &data, arma::vec &curr_res){
 
-        if(isLeaf){
-                addingLeaves();
-                // Selecting the var
-                sampleSplitVar(1);
-                // Updating the limits
-                getLimits();
-                // Selecting a rule
-                var_split_rule = (upper-lower)*rand_unif()+lower;
+        // Getting the number of terminal nodes
+        std::vector<Node*> t_nodes = leaves(tree) ;
+        std::vector<Node*> nog_nodes = nogs(tree);
 
-                if(isRoot){
-                        isRoot = false;
+
+        // Selecting one node to be sampled
+        Node* g_node = sample_node(t_nodes);
+
+        // Calculate current tree log likelihood
+        double tree_log_like = 0;
+
+        std::cout << "Test 1" << std::endl;
+        // Calculating the whole likelihood fo the tree
+        for(int i = 0; i < t_nodes.size(); i++){
+                t_nodes[i]->nodeLogLike(data, curr_res);
+                tree_log_like = tree_log_like + t_nodes[i]->log_likelihood;
+        }
+
+        // std::cout << "Test 2" << std::endl;
+
+        g_node->addingLeaves(data);
+
+        // Selecting the var
+        g_node-> sampleSplitVar(data.x_train.n_cols);
+        // Updating the limits
+        g_node->getLimits();
+        // Selecting a rule
+        g_node->var_split_rule = (g_node->upper-g_node->lower)*rand_unif()+g_node->lower;
+
+        if(g_node->isRoot){
+                g_node->isRoot = false;
+        }
+
+
+        // Create an aux for the left and right index
+        int train_left_counter = 0;
+        int train_right_counter = 0;
+
+        int test_left_counter = 0;
+        int test_right_counter = 0;
+
+        // cout << "Test 3" << endl ;
+
+        // Updating the left and the right nodes
+        for(int i = 0;i<g_node->train_index.size();i++){
+                if(g_node -> train_index[i] == -1){
+                        break;
+                }
+                if(data.x_train(g_node->train_index[i],g_node->var_split)<g_node->var_split_rule){
+                        g_node->left->train_index[train_left_counter] = g_node->train_index[i];
+                        train_left_counter++;
+                } else {
+                        g_node->right->train_index[train_right_counter] = g_node->train_index[i];
+                        train_right_counter++;
                 }
         }
+
+        cout << "Test 4" << endl ;
+
+
+        // Updating the left and right nodes for the
+        for(int i = 0;i<g_node->test_index.size();i++){
+                if(g_node -> test_index[i] == -1){
+                        break;
+                }
+                if(data.x_test(g_node->test_index[i],g_node->var_split)<g_node->var_split_rule){
+                        g_node->left->test_index[test_left_counter] = g_node->test_index[i];
+                        test_left_counter++;
+                } else {
+                        g_node->right->test_index[test_right_counter] = g_node->test_index[i];
+                        test_right_counter++;
+                }
+        }
+
+        cout << "Test 5" << endl ;
+
+        // Updating the loglikelihood for those terminal nodes
+        g_node->left->nodeLogLike(data, curr_res);
+        g_node->right->nodeLogLike(data, curr_res);
+
+        cout << "Test 6" << endl ;
+
+
+        // Getting the transition probability
+        double log_transition_prob = log((0.3)/(nog_nodes.size()+1)) - log(0.3/t_nodes.size()); // 0.3 and 0.3 are the prob of Prune and Grow, respectively
+
+        // Calculating the loglikelihood for the new branches
+        double new_tree_log_like = tree_log_like - g_node->log_likelihood + g_node->left->log_likelihood + g_node->right->log_likelihood ;
+
+        // Calculating the acceptance ratio
+        double acceptance = exp(new_tree_log_like - tree_log_like + log_transition_prob);
+
+        // Keeping the new tree or not
+        if(rand_unif()<acceptance){
+                cout << " ACCEPTED!!! " << endl;
+                // Do nothing just keep the new tree
+        } else {
+                g_node->deletingLeaves();
+        }
+
+        return;
+
+}
+
+
+// Pruning a tree
+void prune(Node* tree, modelParam&data, arma::vec &curr_res){
+
+
+        // Getting the number of terminal nodes
+        std::vector<Node*> t_nodes = leaves(tree) ;
+        std::vector<Node*> nog_nodes = nogs(tree);
+
+        // Selecting one node to be sampled
+        Node* p_node = sample_node(nog_nodes);
+
+        // Calculate current tree log likelihood
+        double tree_log_like = 0;
+
+        std::cout << "Test 1" << std::endl;
+        // Calculating the whole likelihood fo the tree
+        for(int i = 0; i < t_nodes.size(); i++){
+                t_nodes[i]->nodeLogLike(data, curr_res);
+                tree_log_like = tree_log_like + t_nodes[i]->log_likelihood;
+        }
+
+        // Updating the loglikelihood of the selected pruned node
+        p_node->nodeLogLike(data, curr_res);
+
+        // Getting the loglikelihood of the new tree
+        double new_tree_log_like = tree_log_like + p_node->log_likelihood - (p_node->left->log_likelihood + p_node->right->log_likelihood);
+
+        // Calculating the transition loglikelihood
+        double transition_loglike = log((0.3)/(t_nodes.size())) - log((0.3)/(nog_nodes.size()));
+
+        // Calculating the acceptance
+        double acceptance = exp(new_tree_log_like - tree_log_like + transition_loglike);
+
+        if(rand_unif()<acceptance){
+                p_node->deletingLeaves();
+        }
+
+        return;
+}
+
+// Calculating the Loglilelihood of a node
+void Node::nodeLogLike(modelParam& data, arma::vec &curr_res){
+
+        r_sum = 0;
+        r_sq_sum = 0;
+        n_leaf = 0;
+
+        for(int i = 0; i<train_index.size(); i++){
+
+                // Exiting before
+                if(train_index[i]==-1){
+                        break;
+                }
+
+                // Calculating node quantities
+                r_sum = r_sum + curr_res(train_index[i]);
+                r_sq_sum = r_sq_sum + curr_res(train_index[i])*curr_res(train_index[i]);
+                n_leaf = n_leaf + 1;
+
+        }
+
+        log_likelihood = - 0.5*data.tau*r_sq_sum - 0.5*log(data.tau_mu + (n_leaf*data.tau)) + (0.5*(data.tau*data.tau)*(r_sum*r_sum))/( (data.tau*n_leaf)+data.tau_mu);
+
+        return;
+
 }
 
 // Calculating the LLT for a tree
@@ -260,6 +501,7 @@ double treeLogLike(Node* tree, const arma::vec& y,
         }
 
         cout << "Number of leaves " <<  n_leaves << endl;
+
 
         // Selecting it observation
         for(int i=0;i<X.n_rows;i++){
@@ -291,6 +533,7 @@ double treeLogLike(Node* tree, const arma::vec& y,
         return tree_log_likelihood;
 }
 
+
 // Update Weight
 // (this function gonna run all terminal nodes and verify if a observation is
 // inside this terminal node or not)
@@ -304,8 +547,8 @@ void Node::updateWeight(const arma::mat X, int i){
                         left->curr_weight = 0;
                         right->curr_weight = 1;
                 }
-        }
-        else {
+
+        } else {
                 left->updateWeight(X,i);
                 right->updateWeight(X,i);
         }
@@ -315,103 +558,136 @@ void Node::updateWeight(const arma::mat X, int i){
 
 // TESTING FUNCTIONS
 
-// Creating a function to create a tree and select terminal nodes to be grown
-// [[Rcpp::export]]
-void createTree(const arma::mat X,
-                const arma::vec y,
-                int n_tree){
-
-        Forest all_trees = Forest(X,n_tree);
-
-        // Getting the leaves of my first tree
-        for(int k=0;k<10;k++){
-                std::vector<Node*> tree_zero_leafs = leaves(all_trees.trees[0]);
-                Node* g_leaf = sample_node(tree_zero_leafs);
-
-                cout << "Verifying the first tree: " << all_trees.trees[0] <<endl;
-                cout << "Verifying the first tree: " << g_leaf <<endl;
-
-                // Displaying this node before grow
-                g_leaf->displayCurrNode();
-                // Now I gonna grow the chosen node
-                g_leaf->grow();
-                g_leaf->displayCurrNode();
-
-                cout << " ================= " << endl;
-                cout << " ======= " << k <<" ======" << endl;
-                cout << " ================= " << endl;
-
-        }
-
-}
+// // Creating a function to create a tree and select terminal nodes to be grown
+// // [[Rcpp::export]]
+// void createTree(const arma::mat X,
+//                 const arma::vec y,
+//                 int n_tree){
+//
+//         modelParam data(X,
+//                         y,
+//                         X,
+//                         10,
+//                         0.95,
+//                         2.0,
+//                         1.0,
+//                         1.0,
+//                         1.0,
+//                         1.0,
+//                         2000,
+//                         500);
+//         // Creating the data object
+//         Forest all_trees = Forest(data);
+//
+//         // Getting the leaves of my first tree
+//         for(int k=0;k<10;k++){
+//                 std::vector<Node*> tree_zero_leafs = leaves(all_trees.trees[0]);
+//                 Node* g_leaf = sample_node(tree_zero_leafs);
+//
+//                 cout << "Verifying the first tree: " << all_trees.trees[0] <<endl;
+//                 cout << "Verifying the first tree: " << g_leaf <<endl;
+//
+//                 // Displaying this node before grow
+//                 g_leaf->displayCurrNode();
+//                 // Now I gonna grow the chosen node
+//                 g_leaf->grow(tree_zero_leafs[0],data, y);
+//                 g_leaf->displayCurrNode();
+//
+//                 cout << " ================= " << endl;
+//                 cout << " ======= " << k <<" ======" << endl;
+//                 cout << " ================= " << endl;
+//
+//         }
+//
+// }
 
 // Testing likelihood calculation
 
 // [[Rcpp::export]]
-double test_logtree(const arma::mat X,
-                    const arma::vec y,
-                    double tau,
-                    double tau_mu,
-                    int new_split_var,
-                    double new_split_var_rule){
+double test_logtree(arma::mat X,
+                    arma::vec y){
+
+        modelParam data(X,
+                        y,
+                        X,
+                        10,
+                        0.95,
+                        2.0,
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0,
+                        2000,
+                        500);
 
         // Creating a tree
-        Node node_init ;
-        std::cout << "Root loglike" << treeLogLike(&node_init,y,X,tau,tau_mu) <<std::endl;
+        Node node_init(data) ;
+        node_init.Stump(data);
+        // Forest forest(data);
+        node_init.nodeLogLike(data,data.y);
+        std::cout << "Root loglike " << node_init.log_likelihood << std::endl;
 
-        // Adding one node
-        // node_init.addingLeaves();
-        // node_init.isRoot = false;
-        // node_init.var_split = new_split_var;
-        // node_init.var_split_rule = new_split_var_rule;
-
-        node_init.grow();
-        cout<< " ===== " << endl;
-
-        node_init.displayCurrNode();
-        Node* point_test = &node_init;
-        std::cout << "First split: " << treeLogLike(point_test,y,X,tau,tau_mu) <<std::endl;
-
+        // Trying to grow a tree
+        grow(&node_init, data, y);
+        std::cout << " GROWN TREE - Root loglike: " << node_init.left->log_likelihood << std::endl;
+        cout << "Number of leaves: " << leaves(&node_init).size() << endl;
+        prune(&node_init, data,  y);
+        cout << "Number of leaves: " << leaves(&node_init).size() << endl;
 
         return 0.0;
 }
 
-// [[Rcpp::export]]
-void adding_two_vec(arma::vec x, arma::vec y) {
-
-        arma::vec z = x+y;
-        // Adding those two values
-        for(int i = 0; i<x.size(); i++) {
-                std::cout << "Z position" << i << "is given by " << z[i] << std::endl;
-        }
-
-        return;
-}
-
-
-// [[Rcpp::export]]
-void testingDisplay(){
-        Node node_init;
-        node_init.displayNode();
-        node_init.addingLeaves();
-        std::vector<Node*> return_leaves_init  = leaves(&node_init);
-        std::cout << "Final try first " << return_leaves_init.size()<< std::endl;
-
-        node_init.left->addingLeaves();
-        return_leaves_init  = leaves(&node_init);
-        std::cout << "Final try second " << return_leaves_init.size()<< std::endl;
-
-        node_init.displayNode();
-
-        Node* point_tree = &node_init;
-        // Getting all leaves
-        std::vector<Node*> return_leaves = leaves(point_tree);
-
-        for(int i=0;i<return_leaves.size();i++){
-                std::cout << "Terminal leaf left: " << return_leaves[i]->left<<std::endl;
-                std::cout << "Terminal leaf right: " << return_leaves[i]->left<<std::endl;
-
-        }
-        return;
-}
-
+// // [[Rcpp::export]]
+// void adding_two_vec(arma::vec x, arma::vec y) {
+//
+//         arma::vec z = x+y;
+//         // Adding those two values
+//         for(int i = 0; i<x.size(); i++) {
+//                 std::cout << "Z position" << i << "is given by " << z[i] << std::endl;
+//         }
+//
+//         return;
+// }
+//
+//
+// // [[Rcpp::export]]
+// void testingDisplay(arma::mat X,
+//                     arma::vec y){
+//
+//         modelParam data(X,
+//                         y,
+//                         X,
+//                         10,
+//                         0.95,
+//                         2.0,
+//                         1.0,
+//                         1.0,
+//                         1.0,
+//                         1.0,
+//                         2000,
+//                         500);
+//
+//         Node node_init(data);
+//         node_init.displayNode();
+//         // node_init.addingLeaves();
+//         std::vector<Node*> return_leaves_init  = leaves(&node_init);
+//         std::cout << "Final try first " << return_leaves_init.size()<< std::endl;
+//
+//         // node_init.left->addingLeaves();
+//         return_leaves_init  = leaves(&node_init);
+//         std::cout << "Final try second " << return_leaves_init.size()<< std::endl;
+//
+//         node_init.displayNode();
+//
+//         Node* point_tree = &node_init;
+//         // Getting all leaves
+//         std::vector<Node*> return_leaves = leaves(point_tree);
+//
+//         for(int i=0;i<return_leaves.size();i++){
+//                 std::cout << "Terminal leaf left: " << return_leaves[i]->left<<std::endl;
+//                 std::cout << "Terminal leaf right: " << return_leaves[i]->left<<std::endl;
+//
+//         }
+//         return;
+// }
+//

@@ -1,15 +1,18 @@
 #include<RcppArmadillo.h>
-
+#include<vector>
 // Creating the struct
 struct Node;
 struct modelParam;
 
 struct modelParam {
 
-        arma::mat X;
+        arma::mat x_train;
         arma::vec y;
+        arma::mat x_test;
+
 
         // BART prior param specification
+        int n_tree;
         double alpha;
         double beta;
         double tau_mu;
@@ -21,7 +24,19 @@ struct modelParam {
         int n_mcmc;
         int n_burn;
 
-
+        // Defining the constructor for the model param
+        modelParam(arma::mat x_train_,
+                   arma::vec y_,
+                   arma::mat x_test_,
+                   int n_tree_,
+                   double alpha_,
+                   double beta_,
+                   double tau_mu_,
+                   double tau_,
+                   double a_tau_,
+                   double d_tau_,
+                   double n_mcmc_,
+                   double n_burn_);
 
 };
 
@@ -30,9 +45,8 @@ class Forest {
 
 public:
         std::vector<Node*> trees;
-        modelParam modelParam_;
 
-        Forest(const arma::mat &X, int n_tree);
+        Forest(modelParam &data);
         ~Forest();
 };
 
@@ -46,6 +60,8 @@ struct Node {
      Node* left;
      Node* right;
      Node* parent;
+     std::vector<int> train_index;
+     std::vector<int> test_index;
 
      // Branch parameters
      int var_split;
@@ -69,17 +85,19 @@ struct Node {
      void displayCurrNode();
 
      // Creating the methods
-     void addingLeaves();
+     void addingLeaves(modelParam& data);
      void deletingLeaves();
-     void Stump();
+     void Stump(modelParam& data);
      void updateWeight(const arma::mat X, int i);
      void getLimits(); // This function will get previous limit for the current var
      void sampleSplitVar(int p);
      bool isLeft();
      bool isRight();
-     void grow();
+     void grow(Node* tree, modelParam &data, arma::vec &curr_res);
+     void prune(Node* tree, modelParam &data, arma::vec&curr_res);
+     void nodeLogLike(modelParam &data, arma::vec &curr_res);
 
-     Node();
+     Node(modelParam &data);
      ~Node();
 };
 
