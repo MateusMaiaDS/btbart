@@ -1,5 +1,6 @@
 #include "btbart.h"
-
+#include <random>
+#include <Rcpp.h>
 using namespace std;
 
 // Initialising the model Param
@@ -604,83 +605,97 @@ void Node::nodeLogLike(modelParam& data, arma::vec &curr_res){
 
 }
 
-// Calculating the LLT for a tree
-double treeLogLike(Node* tree, const arma::vec& y,
-                   const arma::mat& X, double tau, double tau_mu){
+
+// Update mu
+void updateMu(Node* tree, modelParam &data){
 
         // Getting the number of terminal nodes
         std::vector<Node*> t_nodes = leaves(tree) ;
 
-
-        // Summing-up
-        double tree_log_likelihood = 0;
-        // Getting number of levaes
-        int n_leaves = t_nodes.size();
-        arma::vec w_t_nodes = arma::zeros<arma::vec>(n_leaves);
-        arma::vec n_t_nodes = arma::zeros<arma::vec>(n_leaves);
-        arma::vec t_node_r = arma::zeros<arma::vec>(n_leaves);
-        arma::vec t_node_r_sq = arma::zeros<arma::vec>(n_leaves);
-
-        // If it's a root case
-        if(tree->isRoot){
-                return -0.5*tau*dot(y,y) - 0.5*log(tau_mu + (y.size()*tau)) + (0.5*(tau*tau)*(sum(y)*sum(y)))/(tau_mu + (y.size()*tau));
+        // Iterating over the terminal nodes and updating it its prediction
+        for(int i = 0;i < t_nodes.size();i++){
+                t_nodes[i]->mu = R::rnorm((data.tau*t_nodes[i]->r_sum)/(t_nodes[i]->n_leaf*data.tau+data.tau_mu),sqrt(1/(data.tau*t_nodes[i]->n_leaf+data.tau_mu))) ;
         }
-
-        cout << "Number of leaves " <<  n_leaves << endl;
-
-
-        // Selecting it observation
-        for(int i=0;i<X.n_rows;i++){
-                tree->updateWeight(X,i); // Getting the weights for each terminal node
-                w_t_nodes = arma::zeros<arma::vec>(n_leaves); // Putting zero on the weights terminal nodes
-                        for(int l = 0; l<n_leaves;l++){
-                                if(t_nodes[l]->curr_weight==1){ // This if is just because you only have 1 value per t_node
-                                        w_t_nodes(l) = 1; // I might do not need go through all terminal nodes
-                                        break;
-                                }
-                        }
-
-                // Calculating the sufficient statistics
-                n_t_nodes = n_t_nodes + w_t_nodes;
-                t_node_r = t_node_r + y(i)*w_t_nodes;
-                t_node_r_sq = t_node_r_sq + y(i)*y(i)*w_t_nodes;
-        }
-
-        cout << "ALL NODES " <<sum(n_t_nodes) << endl;
-        // Getting the sum and the sum_sq
-        for(int l = 0; l<n_leaves;l++){
-                t_nodes[l]->r_sum = t_node_r(l);
-                t_nodes[l]->r_sq_sum = t_node_r_sq(l);
-                t_nodes[l]->n_leaf = n_t_nodes(l);
-                tree_log_likelihood = tree_log_likelihood - 0.5*tau*t_node_r_sq(l) - 0.5*log(tau_mu + (n_t_nodes(l)*tau)) + (0.5*(tau*tau)*(t_node_r(l)*t_node_r(l)))/( (tau*n_t_nodes(l))+tau_mu);
-        }
-
-
-        return tree_log_likelihood;
 }
 
+// Get the prediction
+void getPredictions(Node* tree,
+                    arma::vec &current_prediction_train,
+                    arma::vec &current_prediction_test){
 
-// Update Weight
-// (this function gonna run all terminal nodes and verify if a observation is
-// inside this terminal node or not)
-void Node::updateWeight(const arma::mat X, int i){
+        // Getting the current prediction
+        vector<Node*> t_nodes = leaves(tree);
 
-        if(!isLeaf){
-                if(X(i,var_split)<=var_split_rule){
-                        left->curr_weight = 1;
-                        right->curr_weight = 0;
-                } else {
-                        left->curr_weight = 0;
-                        right->curr_weight = 1;
+        for(int i = 0; i<t_nodes.size();i++){
+
+                // For the training samples
+                for(int j = 0; j<t_nodes[i]->train_index.size(); j++){
+
+                        current_prediction_train[t_nodes[i]->train_index[j]] = t_nodes[i]->mu;
+
                 }
 
-        } else {
-                left->updateWeight(X,i);
-                right->updateWeight(X,i);
+                // Regarding the test samples
+                for(int j = 0; j<t_nodes[i] -> test_index.size();j++){
+
+                        current_prediction_test[t_nodes[i]->test_index[j]] = t_nodes[i]->mu;
+
+                }
         }
+}
+
+// Updating the tau parameter
+void updateTau(arma::vec &y_hat,
+               modelParam &data,
+               double a_tau,
+               double d_tau){
+
+        // Getting the sum of residuals square
+        double tau_res_sq_sum = dot((y_hat-data.y),(y_hat-data.y));
+
+        data.tau = R::rgamma((0.5*data.y.size()+a_tau),1/(0.5*tau_res_sq_sum+d_tau));
 
         return;
 }
+
+// Creating the BART function
+Rcpp::List bart(arma::mat x_train,
+          arma::vec y_train,
+          arma::mat x_test,
+          int n_tree,
+          int n_mcmc,
+          int n_burn,
+          double tau, double mu,
+          double tau_mu, double naive_sigma,
+          double alpha, double beta,
+          double a_tau, double d_tau,
+          double nsigma){
+
+        // Creating the structu object
+        modelParam data(x_train,
+                        y_train,
+                        x_test,
+                        n_tree,
+                        alpha,
+                        beta,
+                        tau_mu,
+                        tau,
+                        a_tau,
+                        d_tau,
+                        n_mcmc,
+                        n_burn);
+
+        arma::mat y_train_hat_post;
+        arma::mat y_test_hat_post;
+        arma::vec tau_post;
+
+
+
+        return Rcpp::List::create(y_train_hat_post,
+                                  y_test_hat_post,
+                                  tau_post);
+}
+
 
 // TESTING FUNCTIONS
 
