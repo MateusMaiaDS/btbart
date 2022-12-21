@@ -69,7 +69,7 @@ struct Node {
      double lower;
      double upper;
      double curr_weight; // indicates if the observation is within terminal node or not
-
+     int depth = 0;
 
      // Leaf parameters
      double mu;
