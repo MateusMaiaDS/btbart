@@ -515,22 +515,29 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
         int test_left_counter = 0;
         int test_right_counter = 0;
 
-        cout << " Change var_split: " << c_node -> var_split << endl ;
+        // cout << " Change var_split: " << c_node -> var_split << endl ;
 
         // Updating the left and the right nodes
         for(int i = 0;i<c_node->train_index.size();i++){
                 // cout << " Train indexeses " << c_node -> train_index[i] << endl ;
-                // if(c_node -> train_index[i] == -1){
-                //         break;
-                // }
-                // if(data.x_train(c_node->train_index[i],c_node->var_split)<c_node->var_split_rule){
-                //         c_node->left->train_index[train_left_counter] = c_node->train_index[i];
-                //         train_left_counter++;
-                // } else {
-                //         c_node->right->train_index[train_right_counter] = c_node->train_index[i];
-                //         train_right_counter++;
-                // }
+                if(c_node -> train_index[i] == -1){
+                        break;
+                }
+                if(data.x_train(c_node->train_index[i],c_node->var_split)<c_node->var_split_rule){
+                        c_node->left->train_index[train_left_counter] = c_node->train_index[i];
+                        train_left_counter = train_left_counter + 1 ;
+                } else {
+                        c_node->right->train_index[train_right_counter] = c_node->train_index[i];
+                        train_right_counter = train_right_counter + 1;
+                }
         }
+
+        int new_sum = 0;
+
+        new_sum = train_left_counter + train_right_counter ;
+        cout << "First element: " << c_node->train_index[0] << endl;
+        cout << "Current node size: " << c_node->n_leaf << endl ;
+        cout << "Max train index counter: " << new_sum << endl;
 
         // Updating the left and the right nodes
         for(int i = 0;i<c_node->test_index.size();i++){
@@ -560,25 +567,25 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
         } else {
 
                 // Returning to the previous values
-                // c_node->var_split = old_var_split;
-                // c_node->var_split_rule = old_var_split_rule;
-                // c_node->lower = old_lower;
-                // c_node->upper = old_upper;
-                //
-                // // Returning to the old ones
-                // c_node->left->r_sum = old_left_r_sum;
-                // c_node->left->r_sq_sum = old_left_r_sq_sum;
-                // c_node->left->n_leaf = old_left_n_leaf;
-                // c_node->left->log_likelihood = old_left_log_like;
-                // c_node->left->train_index = old_left_train_index;
-                // c_node->left->test_index = old_left_test_index;
-                //
-                // c_node->right->r_sum = old_right_r_sum;
-                // c_node->right->r_sq_sum = old_right_r_sq_sum;
-                // c_node->right->n_leaf = old_right_n_leaf;
-                // c_node->right->log_likelihood = old_right_log_like;
-                // c_node->right->train_index = old_right_train_index;
-                // c_node->right->test_index = old_right_test_index;
+                c_node->var_split = old_var_split;
+                c_node->var_split_rule = old_var_split_rule;
+                c_node->lower = old_lower;
+                c_node->upper = old_upper;
+
+                // Returning to the old ones
+                c_node->left->r_sum = old_left_r_sum;
+                c_node->left->r_sq_sum = old_left_r_sq_sum;
+                c_node->left->n_leaf = old_left_n_leaf;
+                c_node->left->log_likelihood = old_left_log_like;
+                c_node->left->train_index = old_left_train_index;
+                c_node->left->test_index = old_left_test_index;
+
+                c_node->right->r_sum = old_right_r_sum;
+                c_node->right->r_sq_sum = old_right_r_sq_sum;
+                c_node->right->n_leaf = old_right_n_leaf;
+                c_node->right->log_likelihood = old_right_log_like;
+                c_node->right->train_index = old_right_train_index;
+                c_node->right->test_index = old_right_test_index;
 
         }
 
@@ -633,7 +640,7 @@ void getPredictions(Node* tree,
         // Getting the current prediction
         vector<Node*> t_nodes = leaves(tree);
 
-        cout << "Number of terminal nodes is " << t_nodes.size() << endl;
+        // cout << "Number of terminal nodes is " << t_nodes.size() << endl;
 
         // cout << " Getting the size of current prediction train: " << current_prediction_train.size() << endl;
         for(int i = 0; i<t_nodes.size();i++){
@@ -759,7 +766,7 @@ Rcpp::List bart(arma::mat x_train,
                         } else if(verb>=0.3 & verb <0.6) {
                                 prune(all_forest.trees[t], data, partial_residuals);
                         } else {
-                                change(all_forest.trees[t], data, partial_residuals);
+                                // change(all_forest.trees[t], data, partial_residuals);
                         }
 
                         // return Rcpp::List::create(3);
@@ -771,7 +778,7 @@ Rcpp::List bart(arma::mat x_train,
 
                         // cout << " Test one" << endl;
                         // Updating the current prediction
-                        getPredictions(all_forest.trees[t],prediction_train,prediction_test);
+                        // getPredictions(all_forest.trees[t],prediction_train,prediction_test);
 
 
                         // cout << " Getting vector dimensions " << size(tree_fits_store.col(t)) << endl;
