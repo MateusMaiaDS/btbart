@@ -60,8 +60,8 @@ struct Node {
      Node* left;
      Node* right;
      Node* parent;
-     std::vector<int> train_index;
-     std::vector<int> test_index;
+     int* train_index;
+     int* test_index;
 
      // Branch parameters
      int var_split;
