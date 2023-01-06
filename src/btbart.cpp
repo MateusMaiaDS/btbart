@@ -715,10 +715,9 @@ Rcpp::List bart(arma::mat x_train,
           int n_mcmc,
           int n_burn,
           double tau, double mu,
-          double tau_mu, double naive_sigma,
+          double tau_mu,
           double alpha, double beta,
-          double a_tau, double d_tau,
-          double nsigma){
+          double a_tau, double d_tau){
 
         // Posterior counter
         int curr = 0;
@@ -837,6 +836,21 @@ Rcpp::List bart(arma::mat x_train,
                 pb += 1;
 
         }
+        // Initialising PB
+        std::cout << "[";
+        int k = 0;
+        // Evaluating progress bar
+        for(;k<=pb*width/data.n_mcmc;k++){
+                std::cout << "=";
+        }
+
+        for(; k < width;k++){
+                std:: cout << " ";
+        }
+
+        std::cout << "] " << std::setprecision(5) << 100 << "%\r";
+        std::cout.flush();
+
         std::cout << std::endl;
 
         return Rcpp::List::create(y_train_hat_post,

@@ -1,8 +1,8 @@
 Rcpp::sourceCpp("src/btbart.cpp")
 
-x <- matrix(seq(0,1,length.out = 100))
+x <- matrix(seq(-pi,pi,length.out = 100))
 y <- sin(x)
-
+colnames(x) <- "x"
 
 # Testing the GP-BART
 bart_test <- bart(x_train = x,y_train = y,x_test = x,n_tree = 200,n_mcmc = 5000,
