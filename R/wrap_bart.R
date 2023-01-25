@@ -106,7 +106,11 @@ bartmodel <- rbart(x_train = x,y = y,x_test = x,n_tree = 200)
 
 plot(bartmodel$tau_post, type = "l")
 
+# Comparing with dbarts
+dbartmodel <- dbarts::bart(x.train = x,y.train = y,x.test = x,nskip = 500,ndpost = 1500)
 plot(x,y)
 points(x,rowMeans(bartmodel$y_hat),pch=20)
-plot(bartmodel$tau_post)
+points(x,colMeans(dbartmodel$yhat.train), col = "red", pch=20)
 plot(bartmodel$tau_post, type = "l")
+lines(dbartmodel$sigma^-2,type = "l", col = "blue")
+#

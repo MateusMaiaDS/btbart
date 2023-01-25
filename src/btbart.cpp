@@ -820,10 +820,11 @@ Rcpp::List bart(arma::mat x_train,
 
                         prediction_test_sum = prediction_test_sum + prediction_test;
 
-                        // Updating the Tau
-                        updateTau(partial_pred, data);
 
                 }
+
+                // Updating the Tau
+                updateTau(partial_pred, data);
 
                 if(i > n_burn){
                         // Storing the predictions
