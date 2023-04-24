@@ -458,11 +458,6 @@ void prune(Node* tree, modelParam&data, arma::vec &curr_res){
 void change(Node* tree, modelParam &data, arma::vec &curr_res){
 
 
-        // Setting the size of the tree
-        if(tree->isRoot) {
-                return;
-        }
-
         // Getting the number of terminal nodes
         std::vector<Node*> t_nodes = leaves(tree) ;
         std::vector<Node*> nog_nodes = nogs(tree);
